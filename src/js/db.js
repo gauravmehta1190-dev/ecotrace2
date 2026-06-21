@@ -5,14 +5,20 @@
  * Prevents script-injection and guarantees clean state parsing.
  */
 
-// LocalStorage Keys
+/**
+ * LocalStorage keys utilized by the application.
+ * @type {Object<string, string>}
+ */
 const KEYS = {
   PROFILE: 'cfap_user_profile',
   LOGS: 'cfap_emission_logs',
   CHALLENGES: 'cfap_challenges_progress'
 };
 
-// Default profile structure
+/**
+ * Default profile structure configuration.
+ * @type {Object}
+ */
 const DEFAULT_PROFILE = {
   name: 'Eco Warrior',
   dailyTarget: 15.0, // Standard daily target (in kg CO2e)
@@ -21,7 +27,10 @@ const DEFAULT_PROFILE = {
   joinedDate: new Date().toISOString().split('T')[0]
 };
 
-// Initial system challenges
+/**
+ * Initial presets for system habit challenges.
+ * @type {Array<Object>}
+ */
 export const PRESETS_CHALLENGES = [
   {
     id: 'meatless_day',
@@ -67,6 +76,8 @@ export const PRESETS_CHALLENGES = [
 
 /**
  * Securely sanitizes text input to prevent XSS / script injections.
+ * @param {string} str - Unsanitized input string.
+ * @returns {string} Sanitized safe string.
  */
 export function sanitizeString(str) {
   if (typeof str !== 'string') return '';
@@ -81,6 +92,9 @@ export function sanitizeString(str) {
 
 /**
  * Safe local storage read wrapper.
+ * @param {string} key - LocalStorage item key.
+ * @param {*} [fallback=null] - Fallback value if retrieval fails or item is absent.
+ * @returns {*} Retrieved parsed data or fallback value.
  */
 function readStorage(key, fallback = null) {
   try {
@@ -94,6 +108,9 @@ function readStorage(key, fallback = null) {
 
 /**
  * Safe local storage write wrapper.
+ * @param {string} key - LocalStorage item key.
+ * @param {*} value - Value to serialize and store.
+ * @returns {boolean} True if write succeeded, false otherwise.
  */
 function writeStorage(key, value) {
   try {
@@ -108,15 +125,21 @@ function writeStorage(key, value) {
 /**
  * USER PROFILE UTILITIES
  */
+
+/**
+ * Retrieves the validated user profile from LocalStorage.
+ * Enforces strict schemas and whitelists.
+ * @returns {Object} Validated profile object.
+ */
 export function getUserProfile() {
   const profile = readStorage(KEYS.PROFILE, DEFAULT_PROFILE);
   const validated = { ...DEFAULT_PROFILE };
   
   if (profile && typeof profile === 'object') {
     if (typeof profile.name === 'string' && profile.name.trim()) {
-      validated.name = profile.name;
+      validated.name = sanitizeString(profile.name.trim());
     }
-    if (typeof profile.dailyTarget === 'number' && !isNaN(profile.dailyTarget) && profile.dailyTarget > 0) {
+    if (typeof profile.dailyTarget === 'number' && !isNaN(profile.dailyTarget) && isFinite(profile.dailyTarget) && profile.dailyTarget > 0) {
       validated.dailyTarget = profile.dailyTarget;
     }
     const validCountries = ['US', 'EU', 'IN', 'GL'];
@@ -131,11 +154,16 @@ export function getUserProfile() {
   return validated;
 }
 
+/**
+ * Securely saves user profile config to LocalStorage after validation and sanitization.
+ * @param {Object} profileData - Raw profile inputs.
+ * @returns {boolean} True if successfully stored.
+ */
 export function saveUserProfile(profileData) {
   const current = getUserProfile();
   const validCountries = ['US', 'EU', 'IN', 'GL'];
   
-  let name = typeof profileData.name === 'string' ? profileData.name.trim() : current.name;
+  let name = typeof profileData.name === 'string' ? sanitizeString(profileData.name.trim()) : current.name;
   if (!name) name = current.name;
   
   let dailyTarget = Number(profileData.dailyTarget);
@@ -159,12 +187,14 @@ export function saveUserProfile(profileData) {
 }
 
 /**
- * Validates and cleans a log entry structure.
+ * Validates, cleans, and sanitizes a log entry structure.
+ * @param {Object} entry - Unvalidated daily emissions log entry.
+ * @returns {Object|null} Validated clean log object, or null if the layout is corrupt.
  */
 function validateLogEntry(entry) {
   if (!entry || typeof entry !== 'object') return null;
   
-  const id = typeof entry.id === 'string' && entry.id.trim() ? entry.id : `log-${Date.now()}`;
+  const id = typeof entry.id === 'string' && entry.id.trim() ? sanitizeString(entry.id) : `log-${Date.now()}`;
   
   const datePattern = /^\d{4}-\d{2}-\d{2}$/;
   if (typeof entry.date !== 'string' || !datePattern.test(entry.date)) {
@@ -178,7 +208,7 @@ function validateLogEntry(entry) {
       if (typeof value === 'number') {
         cleaned[key] = isNaN(value) || !isFinite(value) ? 0 : Math.max(0, value);
       } else if (typeof value === 'string') {
-        cleaned[key] = value;
+        cleaned[key] = sanitizeString(value);
       }
     }
     return cleaned;
@@ -194,12 +224,17 @@ function validateLogEntry(entry) {
     totalEmissions: typeof entry.totalEmissions === 'number' && !isNaN(entry.totalEmissions) && isFinite(entry.totalEmissions)
       ? Math.max(0, entry.totalEmissions)
       : 0,
-    timestamp: typeof entry.timestamp === 'string' ? entry.timestamp : new Date().toISOString()
+    timestamp: typeof entry.timestamp === 'string' ? sanitizeString(entry.timestamp) : new Date().toISOString()
   };
 }
 
 /**
  * LOGS UTILITIES
+ */
+
+/**
+ * Retrieves the full sorted array of validated logs.
+ * @returns {Array<Object>} List of validated emission log records sorted by date descending.
  */
 export function getLogs() {
   const logs = readStorage(KEYS.LOGS, []);
@@ -212,11 +247,21 @@ export function getLogs() {
   return validatedLogs.sort((a, b) => new Date(b.date) - new Date(a.date));
 }
 
+/**
+ * Retrieves a single log entry matching a specific date string.
+ * @param {string} dateString - Date to search for (YYYY-MM-DD).
+ * @returns {Object|null} Log entry object, or null if not found.
+ */
 export function getLogByDate(dateString) {
   const logs = getLogs();
   return logs.find(log => log.date === dateString) || null;
 }
 
+/**
+ * Stores or updates a log entry in LocalStorage after verification.
+ * @param {Object} logEntry - Daily emission details to save.
+ * @returns {boolean} True if successfully stored.
+ */
 export function saveLog(logEntry) {
   if (!logEntry || !logEntry.date) {
     throw new Error('Log entry must contain a valid ISO date string (YYYY-MM-DD)');
@@ -239,6 +284,11 @@ export function saveLog(logEntry) {
   return writeStorage(KEYS.LOGS, logs);
 }
 
+/**
+ * Removes a specific log entry by ID.
+ * @param {string} logId - The unique ID of the log.
+ * @returns {boolean} True if delete transaction succeeded.
+ */
 export function deleteLog(logId) {
   const logs = getLogs();
   const filtered = logs.filter(log => log.id !== logId);
@@ -247,6 +297,12 @@ export function deleteLog(logId) {
 
 /**
  * CHALLENGES UTILITIES
+ */
+
+/**
+ * Retrieves progress for all preset habit challenges.
+ * Enforces strict structure schemas on storage objects.
+ * @returns {Object<string, Object>} Challenges tracking dataset mapping challengeId to progress details.
  */
 export function getChallengesProgress() {
   const progress = readStorage(KEYS.CHALLENGES, {});
@@ -265,6 +321,11 @@ export function getChallengesProgress() {
   return cleanProgress;
 }
 
+/**
+ * Subscribes or unsubscribes a user to a challenge habit streak.
+ * @param {string} challengeId - Target challenge identifier.
+ * @returns {Object} Updated challenges tracking details.
+ */
 export function toggleChallengeSubscription(challengeId) {
   const progress = getChallengesProgress();
   if (progress[challengeId]) {
@@ -277,6 +338,12 @@ export function toggleChallengeSubscription(challengeId) {
   return progress;
 }
 
+/**
+ * Logs a successful day completion for an active challenge and updates streaks.
+ * @param {string} challengeId - Challenge identifier.
+ * @param {string} [dateString] - Completion date. Defaults to current local date.
+ * @returns {Object|null} Challenge status payload, or null if invalid.
+ */
 export function recordChallengeCompletion(challengeId, dateString) {
   const progress = getChallengesProgress();
   const challenge = progress[challengeId];
@@ -312,6 +379,7 @@ export function recordChallengeCompletion(challengeId, dateString) {
 
 /**
  * Resets all user databases (useful for testing or profile clearing).
+ * @returns {boolean} True if clear process succeeded.
  */
 export function clearAllData() {
   localStorage.removeItem(KEYS.PROFILE);

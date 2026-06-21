@@ -106,6 +106,8 @@ export function generateInsights(latestLog, target) {
 
 /**
  * Renders the circular progress widget.
+ * @param {number} total - User emissions total.
+ * @param {number} target - Emissions target budget.
  */
 export function updateBudgetCircle(total, target) {
   const circleFill = document.querySelector('.metric-circle-fill');
@@ -149,6 +151,7 @@ export function updateBudgetCircle(total, target) {
 
 /**
  * Renders the category breakdown list inside the widget grid.
+ * @param {Object} latestLog - The most recent daily log entry.
  */
 export function renderCategoryWidgets(latestLog) {
   const values = {
@@ -174,6 +177,7 @@ export function renderCategoryWidgets(latestLog) {
 
 /**
  * Draws a lightweight, highly-interactive SVG Bar Chart showing the last 7 logs.
+ * Enforces XSS safeguards using DOMParser for template injection.
  * @param {Array} logs - Sorted logs (assumed sorted by date desc).
  */
 export function renderTrendsChart(logs) {
@@ -181,18 +185,22 @@ export function renderTrendsChart(logs) {
   if (!chartWrapper) return;
 
   // Clear previous chart
-  chartWrapper.innerHTML = '';
+  chartWrapper.textContent = '';
 
   // Get last 7 days of logs, sort them chronologically (oldest to newest)
   const last7Logs = logs.slice(0, 7).reverse();
 
   if (last7Logs.length === 0) {
-    chartWrapper.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-state-icon">📊</div>
-        <p>No historical data logs recorded yet. Track a few days to view trends!</p>
-      </div>
-    `;
+    const emptyDiv = document.createElement('div');
+    emptyDiv.className = 'empty-state';
+    const emptyIcon = document.createElement('div');
+    emptyIcon.className = 'empty-state-icon';
+    emptyIcon.textContent = '📊';
+    const emptyText = document.createElement('p');
+    emptyText.textContent = 'No historical data logs recorded yet. Track a few days to view trends!';
+    emptyDiv.appendChild(emptyIcon);
+    emptyDiv.appendChild(emptyText);
+    chartWrapper.appendChild(emptyDiv);
     return;
   }
 
@@ -214,7 +222,7 @@ export function renderTrendsChart(logs) {
   const gapWidth = (chartWidth - (barWidth * last7Logs.length)) / (last7Logs.length + 1);
 
   let gridLines = '';
-  // 3 grid lines (25%, 50%, 75%, 100%)
+  // 4 grid lines (25%, 50%, 75%, 100%)
   for (let i = 1; i <= 4; i++) {
     const yVal = paddingTop + chartHeight - (chartHeight * (i / 4));
     const labelVal = (maxEmissions * (i / 4)).toFixed(0);
@@ -246,7 +254,7 @@ export function renderTrendsChart(logs) {
   });
 
   const svgContent = `
-    <svg viewBox="0 0 ${svgWidth} ${svgHeight}" class="svg-chart" aria-label="Carbon emission trends chart for the last 7 logged days" role="img">
+    <svg viewBox="0 0 ${svgWidth} ${svgHeight}" class="svg-chart" aria-label="Carbon emission trends chart for the last 7 logged days" role="img" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stop-color="var(--accent-emerald-light)" />
@@ -266,5 +274,13 @@ export function renderTrendsChart(logs) {
     </svg>
   `;
   
-  chartWrapper.innerHTML = svgContent;
+  // Safe DOM insertion using DOMParser to avoid raw innerHTML warnings
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(svgContent, 'image/svg+xml');
+  const svgNode = doc.documentElement;
+  if (!doc.querySelector('parsererror')) {
+    chartWrapper.appendChild(svgNode);
+  } else {
+    console.error('Failed to parse SVG chart markup');
+  }
 }

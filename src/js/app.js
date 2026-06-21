@@ -48,7 +48,7 @@ const STATE = {
   calendarMonth: new Date().getMonth()
 };
 
-// DOM Elements
+// DOM Elements cache
 const elements = {};
 
 /**
@@ -87,9 +87,10 @@ function cacheElements() {
   elements.calPrev = document.getElementById('cal-prev');
   elements.calNext = document.getElementById('cal-next');
   
-  // Dialog modal
+  // Dialog modal settings
   elements.settingsModal = document.getElementById('settings-modal');
   elements.btnCloseSettings = document.getElementById('btn-close-settings');
+  elements.btnCancelSettings = document.getElementById('btn-cancel-settings');
   elements.settingsForm = document.getElementById('settings-form');
   
   // Dynamic Containers
@@ -106,12 +107,18 @@ function cacheElements() {
   elements.testFailedCount = document.getElementById('test-failed-count');
 }
 
+/**
+ * Display toast notification dynamically.
+ * @param {string} message - Toast text.
+ * @param {string} [type='success'] - 'success', 'error', 'info'.
+ */
 export function showToast(message, type = 'success') {
   let container = document.getElementById('toast-container');
   if (!container) {
     container = document.createElement('div');
     container.id = 'toast-container';
     container.className = 'toast-container';
+    container.setAttribute('aria-live', 'polite');
     document.body.appendChild(container);
   }
 
@@ -120,7 +127,8 @@ export function showToast(message, type = 'success') {
   toast.role = 'alert';
   
   const iconSpan = document.createElement('span');
-  iconSpan.textContent = type === 'error' ? '❌' : '✅';
+  iconSpan.setAttribute('aria-hidden', 'true');
+  iconSpan.textContent = type === 'error' ? '❌' : (type === 'info' ? 'ℹ️' : '✅');
   
   const textSpan = document.createElement('span');
   textSpan.textContent = message;
@@ -137,10 +145,35 @@ export function showToast(message, type = 'success') {
 }
 
 /**
+ * Traps keyboard focus within an overlay container (Wizard or Settings dialog).
+ * @param {KeyboardEvent} e - Keyboard event.
+ * @param {HTMLElement} container - Target container element.
+ */
+function trapFocus(e, container) {
+  if (e.key !== 'Tab') return;
+  const focusables = Array.from(container.querySelectorAll('button, [href], input, select, textarea'))
+    .filter(el => !el.disabled && el.offsetParent !== null);
+  if (focusables.length === 0) return;
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  if (e.shiftKey) {
+    if (document.activeElement === first) {
+      last.focus();
+      e.preventDefault();
+    }
+  } else {
+    if (document.activeElement === last) {
+      first.focus();
+      e.preventDefault();
+    }
+  }
+}
+
+/**
  * Setup Event Listeners
  */
 function setupEventListeners() {
-  // Navigation
+  // Navigation tabs routing
   elements.navLinks.forEach(link => {
     link.addEventListener('click', (e) => {
       e.preventDefault();
@@ -152,15 +185,16 @@ function setupEventListeners() {
   // Theme switch
   elements.themeToggle.addEventListener('click', toggleTheme);
 
-  // Settings modal operations — profile badge opens modal
+  // Settings modal operations
   elements.profileBadge?.addEventListener('click', openSettingsModal);
   elements.btnCloseSettings?.addEventListener('click', closeSettingsModal);
+  elements.btnCancelSettings?.addEventListener('click', closeSettingsModal);
   elements.settingsModal?.addEventListener('click', (e) => {
     if (e.target === elements.settingsModal) closeSettingsModal();
   });
   elements.settingsForm?.addEventListener('submit', handleSettingsSave);
 
-  // Clean energy slider values
+  // Clean energy slider values display update
   elements.cleanEnergySlider?.addEventListener('input', (e) => {
     elements.cleanEnergyVal.textContent = `${e.target.value}%`;
   });
@@ -168,7 +202,7 @@ function setupEventListeners() {
   // Track emissions form submit
   elements.trackerForm?.addEventListener('submit', handleLogSubmission);
 
-  // Today button jumps calendar to today and selects it
+  // Today button calendar jump
   elements.btnToday?.addEventListener('click', () => {
     const today = new Date();
     STATE.selectedLogDate = today.toISOString().split('T')[0];
@@ -198,7 +232,7 @@ function setupEventListeners() {
     renderCalendar();
   });
 
-  // Onboarding Wizard buttons
+  // Onboarding Wizard controls
   let currentWizardStep = 0;
   elements.btnWizardNext?.addEventListener('click', () => {
     if (validateWizardStep(currentWizardStep)) {
@@ -218,13 +252,22 @@ function setupEventListeners() {
     }
   });
 
-  // System Diagnostics
+  // Dialog keyboard focus traps
+  elements.wizardOverlay.addEventListener('keydown', (e) => {
+    trapFocus(e, elements.wizardOverlay);
+  });
+  elements.settingsModal.addEventListener('keydown', (e) => {
+    trapFocus(e, elements.settingsModal);
+  });
+
+  // System Diagnostics trigger
   elements.btnRunTests?.addEventListener('click', runSystemDiagnostics);
   elements.btnResetData?.addEventListener('click', handleResetDataRequest);
 }
 
 /**
  * View Routing
+ * @param {string} viewName - Name of view to show.
  */
 function switchView(viewName) {
   STATE.activeView = viewName;
@@ -266,7 +309,7 @@ function switchView(viewName) {
 function toggleTheme() {
   const isLight = elements.body.classList.toggle('light-theme');
   localStorage.setItem('cfap_theme', isLight ? 'light' : 'dark');
-  elements.themeToggle.innerHTML = isLight ? '🌙' : '☀️';
+  elements.themeToggle.textContent = isLight ? '🌙' : '☀️';
   elements.themeToggle.setAttribute('aria-label', isLight ? 'Switch to Dark Theme' : 'Switch to Light Theme');
 }
 
@@ -274,29 +317,35 @@ function loadThemePreference() {
   const saved = localStorage.getItem('cfap_theme');
   if (saved === 'light') {
     elements.body.classList.add('light-theme');
-    elements.themeToggle.innerHTML = '🌙';
+    elements.themeToggle.textContent = '🌙';
     elements.themeToggle.setAttribute('aria-label', 'Switch to Dark Theme');
   } else {
     elements.body.classList.remove('light-theme');
-    elements.themeToggle.innerHTML = '☀️';
+    elements.themeToggle.textContent = '☀️';
     elements.themeToggle.setAttribute('aria-label', 'Switch to Light Theme');
   }
 }
 
 /**
- * Onboarding Wizard steps
+ * Onboarding Wizard steps logic
  */
 function checkOnboarding() {
   STATE.profile = getUserProfile();
   if (!STATE.profile.onboarded) {
     elements.wizardOverlay.classList.add('active');
+    elements.wizardOverlay.setAttribute('aria-hidden', 'false');
     updateWizardStep(0);
   } else {
     elements.wizardOverlay.classList.remove('active');
+    elements.wizardOverlay.setAttribute('aria-hidden', 'true');
     initializeDashboard();
   }
 }
 
+/**
+ * Update active wizard view step.
+ * @param {number} stepIdx - Wizard step index.
+ */
 function updateWizardStep(stepIdx) {
   elements.wizardSteps.forEach((step, idx) => {
     step.classList.toggle('active', idx === stepIdx);
@@ -306,10 +355,31 @@ function updateWizardStep(stepIdx) {
     dot.classList.toggle('active', idx === stepIdx);
   });
 
-  elements.btnWizardPrev.style.display = stepIdx === 0 ? 'none' : 'inline-flex';
+  if (stepIdx === 0) {
+    elements.btnWizardPrev.classList.add('hidden');
+  } else {
+    elements.btnWizardPrev.classList.remove('hidden');
+  }
+  
   elements.btnWizardNext.textContent = stepIdx === elements.wizardSteps.length - 1 ? 'Get Started' : 'Next Step';
+
+  // Accessible keyboard focus placement
+  setTimeout(() => {
+    if (stepIdx === 0) {
+      elements.wizardNameInput.focus();
+    } else if (stepIdx === 1) {
+      elements.wizardTargetInput.focus();
+    } else if (stepIdx === 2) {
+      elements.wizardCountryInput.focus();
+    }
+  }, 50);
 }
 
+/**
+ * Validates active wizard inputs before allowing step transitions.
+ * @param {number} stepIdx - Wizard step index to validate.
+ * @returns {boolean} True if inputs are valid.
+ */
 function validateWizardStep(stepIdx) {
   if (stepIdx === 0) {
     const name = elements.wizardNameInput.value.trim();
@@ -329,6 +399,9 @@ function validateWizardStep(stepIdx) {
   return true;
 }
 
+/**
+ * Commits profile choices, onboarding completes.
+ */
 function completeWizard() {
   const newProfile = {
     name: elements.wizardNameInput.value.trim(),
@@ -339,8 +412,9 @@ function completeWizard() {
   saveUserProfile(newProfile);
   STATE.profile = getUserProfile();
   elements.wizardOverlay.classList.remove('active');
+  elements.wizardOverlay.setAttribute('aria-hidden', 'true');
   
-  showToast(`Welcome ${STATE.profile.name}! Your green profile is initialized.`);
+  showToast(`Welcome ${STATE.profile.name}! Your profile is initialized.`);
   initializeDashboard();
 }
 
@@ -348,38 +422,32 @@ function completeWizard() {
  * Dashboard & Statistics Updates
  */
 function initializeDashboard() {
-  // Update UI values
   elements.profileName.textContent = STATE.profile.name;
   STATE.logs = getLogs();
-  
   refreshDashboard();
 }
 
 function refreshDashboard() {
   STATE.logs = getLogs();
   
-  // Calculate average emissions budget progress
-  const latestLog = STATE.logs[0] || null; // Most recent log
+  const latestLog = STATE.logs[0] || null;
   const target = STATE.profile.dailyTarget;
   const totalSavings = calculateTotalSavings();
   
-  // Render summary text badges
   elements.totalSavingsBadge.textContent = `${totalSavings.toFixed(1)} kg`;
   
-  // Draw circular budget chart
   const currentEmissions = latestLog ? latestLog.totalEmissions : 0;
   updateBudgetCircle(currentEmissions, target);
-
-  // Render mini category values
   renderCategoryWidgets(latestLog);
-
-  // Draw trend graph
   renderTrendsChart(STATE.logs);
-
-  // Generate recommendation list
   renderInsights(latestLog, target);
 }
 
+/**
+ * Renders insight lists.
+ * @param {Object} latestLog - Most recent log.
+ * @param {number} target - Budget target.
+ */
 function renderInsights(latestLog, target) {
   elements.insightsContainer.textContent = '';
   const insights = generateInsights(latestLog, target);
@@ -419,7 +487,6 @@ function renderInsights(latestLog, target) {
 function openSettingsModal() {
   const profile = getUserProfile();
   
-  // Pre-fill inputs
   document.getElementById('settings-name').value = profile.name;
   document.getElementById('settings-target').value = profile.dailyTarget;
   document.getElementById('settings-country').value = profile.country;
@@ -435,6 +502,10 @@ function closeSettingsModal() {
   elements.profileBadge?.focus();
 }
 
+/**
+ * Profile settings save submission callback.
+ * @param {Event} e - Form submit event.
+ */
 function handleSettingsSave(e) {
   e.preventDefault();
   const name = document.getElementById('settings-name').value.trim();
@@ -462,11 +533,10 @@ function handleSettingsSave(e) {
  * Emissions Tracking Logger Logic
  */
 function loadLogForSelectedDate() {
-  // Reset form and slider display
+  // Reset form and clean energy display text
   elements.trackerForm.reset();
   elements.cleanEnergyVal.textContent = '0%';
 
-  // Retrieve existing log for this date if any
   const logs = getLogs();
   const log = logs.find(l => l.date === STATE.selectedLogDate);
 
@@ -502,10 +572,13 @@ function loadLogForSelectedDate() {
   }
 }
 
+/**
+ * Form save log entry callback.
+ * @param {Event} e - Submit event.
+ */
 function handleLogSubmission(e) {
   e.preventDefault();
 
-  // Date comes from calendar state, NOT from FormData
   const date = STATE.selectedLogDate;
   if (!date) {
     showToast('Please select a date on the calendar first.', 'error');
@@ -514,7 +587,6 @@ function handleLogSubmission(e) {
 
   const formData = new FormData(elements.trackerForm);
 
-  // Parse values into categories
   const log = {
     date: date,
     transport: {
@@ -547,14 +619,10 @@ function handleLogSubmission(e) {
     }
   };
 
-  // Compile calculations
   log.totalEmissions = calculateTotalEmissions(log);
-
-  // Save to DB
   saveLog(log);
   showToast(`Daily footprint for ${date} saved: ${log.totalEmissions.toFixed(1)} kg CO2e.`);
 
-  // Refresh calendar to show the newly-logged date, and reload history
   renderCalendar();
   refreshHistoryList();
 }
@@ -577,7 +645,6 @@ function refreshHistoryList() {
     const item = document.createElement('div');
     item.className = 'history-item';
     
-    // Parse date human format
     const dateObj = new Date(log.date);
     const dateStr = dateObj.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
     
@@ -626,7 +693,7 @@ function refreshHistoryList() {
     deleteBtn.setAttribute('aria-label', `Delete entry for ${log.date}`);
     deleteBtn.textContent = '🗑️';
     
-    // Deletion handler
+    // Deletion confirmation handler
     deleteBtn.addEventListener('click', () => {
       if (confirm(`Are you sure you want to remove the log entry for ${log.date}?`)) {
         deleteLog(log.id);
@@ -647,7 +714,8 @@ function refreshHistoryList() {
 }
 
 /**
- * Inline Calendar Widget — renders a month grid with logged-date indicators.
+ * Accessible Calendar Table rendering.
+ * Renders weeks in tr rows and days inside td elements.
  */
 function renderCalendar() {
   if (!elements.calGrid) return;
@@ -656,32 +724,42 @@ function renderCalendar() {
   const month = STATE.calendarMonth;
   const todayStr = new Date().toISOString().split('T')[0];
 
-  // Update month label
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'];
   elements.calMonthLabel.textContent = `${monthNames[month]} ${year}`;
 
-  // Build a set of logged dates for fast lookup
   const logs = getLogs();
   const loggedDates = new Set(logs.map(l => l.date));
 
-  // First day of the month (0=Sun, 6=Sat)
+  // First day weekday offset (0=Sun, 6=Sat)
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
   elements.calGrid.textContent = '';
 
-  // Leading empty cells for days before the 1st
+  let currentTr = document.createElement('tr');
+  elements.calGrid.appendChild(currentTr);
+
+  // Pre-fill empty columns
   for (let i = 0; i < firstDay; i++) {
-    const empty = document.createElement('button');
-    empty.className = 'cal-day cal-day--empty';
-    empty.disabled = true;
-    empty.setAttribute('aria-hidden', 'true');
-    elements.calGrid.appendChild(empty);
+    const emptyTd = document.createElement('td');
+    emptyTd.className = 'cal-cell cal-cell--empty';
+    currentTr.appendChild(emptyTd);
   }
 
-  // Day cells
+  let cellCount = firstDay;
+
+  // Insert active days
   for (let d = 1; d <= daysInMonth; d++) {
+    if (cellCount === 7) {
+      currentTr = document.createElement('tr');
+      elements.calGrid.appendChild(currentTr);
+      cellCount = 0;
+    }
+
+    const td = document.createElement('td');
+    td.className = 'cal-cell';
+
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -700,12 +778,23 @@ function renderCalendar() {
       loadLogForSelectedDate();
     });
 
-    elements.calGrid.appendChild(btn);
+    td.appendChild(btn);
+    currentTr.appendChild(td);
+    cellCount++;
+  }
+
+  // Post-fill empty columns to complete week structure
+  if (cellCount < 7) {
+    for (let i = cellCount; i < 7; i++) {
+      const emptyTd = document.createElement('td');
+      emptyTd.className = 'cal-cell cal-cell--empty';
+      currentTr.appendChild(emptyTd);
+    }
   }
 }
 
 /**
- * Updates the selected-date banner text inside the tracker form.
+ * Updates Selected Date display banner text.
  */
 function updateSelectedDateDisplay() {
   if (!elements.selectedDateDisplay) return;
@@ -723,7 +812,7 @@ function updateSelectedDateDisplay() {
 }
 
 /**
- * Challenges Management Tab logic
+ * Challenges Management View Rendering
  */
 function refreshChallengesView() {
   elements.challengesGrid.textContent = '';
@@ -807,7 +896,7 @@ function refreshChallengesView() {
     actions.appendChild(compBtn);
     card.appendChild(actions);
 
-    // Click hooks
+    // Dynamic subscription listeners
     subBtn.addEventListener('click', () => {
       toggleChallengeSubscription(c.id);
       refreshChallengesView();
@@ -832,7 +921,7 @@ function refreshChallengesView() {
  * Diagnostics & Test execution in browser
  */
 function runSystemDiagnostics() {
-  elements.testLogConsole.innerHTML = '';
+  elements.testLogConsole.textContent = '';
   elements.testPassedCount.textContent = '0';
   elements.testFailedCount.textContent = '0';
 
@@ -843,8 +932,8 @@ function runSystemDiagnostics() {
     elements.testLogConsole.appendChild(line);
     elements.testLogConsole.scrollTop = elements.testLogConsole.scrollHeight;
   }).then(results => {
-    elements.testPassedCount.textContent = results.passed;
-    elements.testFailedCount.textContent = results.failed;
+    elements.testPassedCount.textContent = String(results.passed);
+    elements.testFailedCount.textContent = String(results.failed);
     
     if (results.failed === 0) {
       showToast('All browser unit validation checks passed!', 'success');
@@ -863,7 +952,7 @@ function handleResetDataRequest() {
   }
 }
 
-// Initial run
+// Initial application bootstrap
 window.addEventListener('DOMContentLoaded', () => {
   cacheElements();
   setupEventListeners();

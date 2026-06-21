@@ -20,7 +20,8 @@ import {
   getChallengesProgress,
   toggleChallengeSubscription,
   recordChallengeCompletion,
-  clearAllData
+  clearAllData,
+  sanitizeString
 } from './db.js';
 
 import {
@@ -28,17 +29,21 @@ import {
   getSavingsByCategory
 } from './challenges.js';
 
+import { generateInsights } from './dashboard.js';
+
 const tests = [];
 
 /**
  * Registers a new test case.
+ * @param {string} name - Test description.
+ * @param {Function} fn - Test function.
  */
 function test(name, fn) {
   tests.push({ name, fn });
 }
 
 /**
- * Simple Assertions
+ * Simple assertion library.
  */
 const assert = {
   equal(actual, expected, message = '') {
@@ -62,6 +67,14 @@ const assert = {
     }
   }
 };
+
+/* --- INPUT SANITIZATION TESTS --- */
+
+test('Sanitization - sanitizeString escapes HTML and Javascript injection patterns', () => {
+  const raw = '<script>alert("XSS & CSRF")</script>/';
+  const clean = sanitizeString(raw);
+  assert.equal(clean, '&lt;script&gt;alert(&quot;XSS &amp; CSRF&quot;)&lt;&#x2F;script&gt;&#x2F;');
+});
 
 /* --- CALCULATOR TESTS --- */
 
@@ -92,6 +105,16 @@ test('Transport Emissions - Flight hours conversion', () => {
   assert.equal(result, 570);
 });
 
+test('Transport Emissions - Handle non-numeric, finite, negative boundaries', () => {
+  const resultNegative = calculateTransportEmissions({
+    carKm: -100, // negative should be sanitized to 0
+    busKm: NaN,  // NaN should be sanitized to 0
+    trainKm: Infinity, // Infinity should be sanitized to 0
+    flightShortHours: 'three' // invalid numeric string should be sanitized to 0
+  });
+  assert.equal(resultNegative, 0);
+});
+
 test('Energy Emissions - Clean energy offset', () => {
   const result = calculateEnergyEmissions({
     electricityKwh: 300,
@@ -102,6 +125,20 @@ test('Energy Emissions - Clean energy offset', () => {
   });
   // 69.3 + 18.2 + 2.98 = 90.48
   assert.approx(result, 90.48);
+});
+
+test('Energy Emissions - Clean energy percentage boundaries', () => {
+  const resultOverCap = calculateEnergyEmissions({
+    electricityKwh: 100,
+    electricityCleanPercent: 120 // should cap at 100% (zero emissions)
+  });
+  assert.equal(resultOverCap, 0);
+
+  const resultUnderFloor = calculateEnergyEmissions({
+    electricityKwh: 100,
+    electricityCleanPercent: -20 // should floor at 0% (100 * 0.385 = 38.5)
+  });
+  assert.approx(resultUnderFloor, 38.5);
 });
 
 test('Diet Emissions - Diet type factor resolution', () => {
@@ -157,6 +194,36 @@ test('Database - Profile CRUD validations', () => {
   assert.equal(updated.onboarded, true);
 });
 
+test('Database - Reject country not in whitelist', () => {
+  clearAllData();
+  saveUserProfile({
+    name: 'Tester',
+    dailyTarget: 20,
+    country: 'XX' // invalid country code
+  });
+  const profile = getUserProfile();
+  assert.equal(profile.country, 'GL'); // Falls back to Global mix 'GL'
+});
+
+test('Database - Profile budget numeric safeguards', () => {
+  clearAllData();
+  saveUserProfile({
+    name: 'Tester',
+    dailyTarget: -50, // invalid negative budget
+    country: 'US'
+  });
+  let profile = getUserProfile();
+  assert.equal(profile.dailyTarget, 15.0); // Falls back to standard default limit
+  
+  saveUserProfile({
+    name: 'Tester',
+    dailyTarget: NaN, // invalid NaN budget
+    country: 'US'
+  });
+  profile = getUserProfile();
+  assert.equal(profile.dailyTarget, 15.0); // Falls back to standard default limit
+});
+
 test('Database - Logs saving & deletion', () => {
   clearAllData();
   
@@ -208,9 +275,47 @@ test('Database & Challenges - Achievements and offsets tracking', () => {
   assert.equal(categorySavings.transport, 0);
 });
 
+test('Database & Challenges - Broken streak resets counter', () => {
+  clearAllData();
+  toggleChallengeSubscription('commute_green');
+  
+  // Day 1 completion
+  recordChallengeCompletion('commute_green', '2026-06-01');
+  let progress = getChallengesProgress();
+  assert.equal(progress.commute_green.streak, 1);
+  
+  // Day 3 completion (skipped Day 2, streak resets to 1)
+  recordChallengeCompletion('commute_green', '2026-06-03');
+  progress = getChallengesProgress();
+  assert.equal(progress.commute_green.streak, 1);
+  assert.equal(progress.commute_green.completedCount, 2);
+});
+
+/* --- INSIGHTS GENERATION TESTS --- */
+
+test('Insights Generator - Correctly identifies category thresholds', () => {
+  const target = 20.0;
+  
+  // Transport emissions = 100, diet/waste/energy = 0. Total = 100. Transport pct = 100% (>40%)
+  const logHighTransport = {
+    totalEmissions: 100.00,
+    transport: { carKm: 588.24 } // 588.24 * 0.170 = 100.00
+  };
+  
+  const insights = generateInsights(logHighTransport, target);
+  
+  const transportWarning = insights.find(ins => ins.title === 'High Travel Footprint');
+  assert.truthy(transportWarning);
+  
+  const budgetWarning = insights.find(ins => ins.title === 'Emissions Budget Exceeded');
+  assert.truthy(budgetWarning);
+});
+
 /**
  * Runs the client test suite and calls back with log details.
  * Backs up and restores user data so diagnostics don't wipe real state.
+ * @param {Function} logCallback - Function invoked for each test result log line.
+ * @returns {Promise<Object>} Object containing count of passed and failed checks.
  */
 export async function runClientTests(logCallback) {
   let passed = 0;
@@ -229,10 +334,10 @@ export async function runClientTests(logCallback) {
     try {
       t.fn();
       passed++;
-      logCallback(`[PASS] ${t.name}`, 'pass');
+      logCallback(`PASS: ${t.name}`, 'pass');
     } catch (err) {
       failed++;
-      logCallback(`[FAIL] ${t.name}\n      Error: ${err.message}`, 'fail');
+      logCallback(`FAIL: ${t.name} - Error: ${err.message}`, 'fail');
     }
   }
   
@@ -245,7 +350,6 @@ export async function runClientTests(logCallback) {
     }
   });
   
-  logCallback(`\n--- TEST RESULTS: ${passed} PASSED, ${failed} FAILED ---`, failed > 0 ? 'fail' : 'pass');
+  logCallback(`\nTEST RESULTS: ${passed} PASSED, ${failed} FAILED`, failed > 0 ? 'fail' : 'pass');
   return { passed, failed };
 }
-
