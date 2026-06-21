@@ -8,17 +8,17 @@
   --bg-card-hover: hsla(223, 47%, 18%, 0.85);
   --bg-modal: hsl(223, 47%, 12%);
   --border-color: hsla(217, 30%, 60%, 0.15);
-  --border-focus: hsl(150, 84%, 42%);
+  --border-focus: hsl(150, 84%, 48%);
   
   --text-primary: hsl(210, 40%, 98%);
   --text-secondary: hsl(215, 25%, 72%);
-  --text-muted: hsl(215, 16%, 57%);
+  --text-muted: hsl(215, 20%, 65%);
   
-  --accent-emerald: hsl(150, 84%, 38%);
+  --accent-emerald: hsl(150, 84%, 44%);
   --accent-emerald-light: hsl(150, 84%, 48%);
   --accent-teal: hsl(182, 85%, 39%);
   --accent-orange: hsl(28, 90%, 55%);
-  --accent-red: hsl(358, 85%, 62%);
+  --accent-red: hsl(358, 85%, 68%);
   
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35);
@@ -45,17 +45,17 @@ body.light-theme {
   --bg-card-hover: rgba(255, 255, 255, 0.95);
   --bg-modal: hsl(0, 0%, 100%);
   --border-color: rgba(0, 0, 0, 0.08);
-  --border-focus: hsl(150, 84%, 28%);
+  --border-focus: hsl(150, 84%, 24%);
   
   --text-primary: hsl(222, 47%, 12%);
   --text-secondary: hsl(215, 20%, 35%);
-  --text-muted: hsl(215, 12%, 52%);
+  --text-muted: hsl(215, 15%, 40%);
   
-  --accent-emerald: hsl(150, 84%, 28%);
-  --accent-emerald-light: hsl(150, 84%, 35%);
+  --accent-emerald: hsl(150, 84%, 24%);
+  --accent-emerald-light: hsl(150, 84%, 32%);
   --accent-teal: hsl(182, 85%, 29%);
-  --accent-orange: hsl(28, 90%, 42%);
-  --accent-red: hsl(358, 85%, 48%);
+  --accent-orange: hsl(28, 90%, 38%);
+  --accent-red: hsl(358, 85%, 44%);
   
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
@@ -1268,4 +1268,256 @@ body.light-theme .cal-day:hover:not(.cal-day--empty):not(.cal-day--selected) {
 .legend-dot--today {
   background: transparent;
   border: 2px solid var(--accent-teal);
+}
+
+/* --- SEMANTIC HELPER CLASSES FOR ELIMINATING INLINE STYLES & ACCESSIBILITY --- */
+
+.hidden {
+  display: none !important;
+}
+
+.flex-1 {
+  flex: 1 !important;
+}
+
+.btn-full-width {
+  width: 100% !important;
+}
+
+.wizard-card-title {
+  font-size: 2.2rem;
+  margin-bottom: 1rem;
+}
+
+.wizard-card-sub {
+  margin-bottom: 2rem;
+}
+
+.wizard-step-title {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.wizard-step-desc {
+  font-size: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+
+.wizard-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2rem;
+}
+
+.wizard-btn-next {
+  margin-left: auto;
+}
+
+.section-header {
+  margin-bottom: 0.5rem;
+}
+
+.section-title {
+  font-size: 2.2rem;
+  margin-bottom: 0.25rem;
+}
+
+.card-heading {
+  font-size: 1.3rem;
+  margin-bottom: 1.25rem;
+}
+
+.milestone-wrapper {
+  margin-top: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--border-color);
+  padding-top: 1rem;
+}
+
+.milestone-title {
+  font-size: 1.05rem;
+  margin-bottom: 0.15rem;
+}
+
+.milestone-desc {
+  font-size: 0.85rem;
+  margin-bottom: 0;
+  color: var(--text-muted);
+}
+
+.savings-badge {
+  background: hsla(150, 84%, 38%, 0.15);
+  border: 1px solid var(--accent-emerald);
+  border-radius: 12px;
+  padding: 0.5rem 1.25rem;
+  font-weight: 700;
+  color: var(--accent-emerald-light);
+  font-size: 1.2rem;
+}
+
+.trend-title {
+  font-size: 1.3rem;
+  margin-bottom: 0.5rem;
+}
+
+.trend-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.insights-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.insights-container-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.btn-today-log {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  margin-left: auto;
+}
+
+.form-fieldset {
+  border: none !important;
+}
+
+.form-fieldset-legend {
+  font-family: var(--font-heading);
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--accent-emerald-light);
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.form-hr {
+  border: 0;
+  border-top: 1px solid var(--border-color);
+}
+
+.btn-submit-log {
+  margin-top: 1rem;
+  align-self: flex-start;
+  padding: 0.8rem 2.5rem;
+  font-size: 1.05rem;
+}
+
+.sidebar-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.sidebar-card {
+  padding: 1.25rem;
+}
+
+.history-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  max-height: 380px;
+}
+
+.history-title {
+  font-size: 1.15rem;
+  margin-bottom: 0.75rem;
+}
+
+.challenges-grid-spacing {
+  margin-top: 1rem;
+}
+
+.diagnostics-control-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.diagnostics-card-title {
+  font-size: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.diagnostics-card-desc {
+  font-size: 0.85rem;
+}
+
+.diagnostics-action-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.diagnostics-stat-card {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+  text-align: center;
+}
+
+body.light-theme .diagnostics-stat-card {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.diagnostics-stat-title {
+  font-size: 0.75rem;
+}
+
+.diagnostics-stat-val {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--accent-emerald-light);
+  margin-top: 0.25rem;
+}
+
+.diagnostics-stat-val.failed {
+  color: var(--accent-red);
+}
+
+.settings-modal-title {
+  margin-bottom: 0;
+}
+
+/* --- ACCESSIBLE TABLE CALENDAR STYLING --- */
+.calendar-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+}
+
+.calendar-table th {
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding-bottom: 0.5rem;
+  letter-spacing: 0.3px;
+  width: 14.28%;
+}
+
+.calendar-table td {
+  width: 14.28%;
+  padding: 2px;
+  text-align: center;
+}
+
+.cal-cell {
+  position: relative;
+}
+
+.cal-cell--empty {
+  cursor: default;
 }
