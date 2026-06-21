@@ -65,6 +65,16 @@ runTest('Transport: flights hours conversion', () => {
   assert.strictEqual(result, Number((expectedShort + expectedLong).toFixed(2)));
 });
 
+runTest('Transport: handle non-numeric, finite, negative boundaries', () => {
+  const result = calculateTransportEmissions({
+    carKm: -120, // negative should be sanitized to 0
+    busKm: NaN,  // NaN should be sanitized to 0
+    trainKm: Infinity, // Infinity should be sanitized to 0
+    flightShortHours: 'invalid' // non-numeric should be sanitized to 0
+  });
+  assert.strictEqual(result, 0);
+});
+
 // 2. Energy calculations tests
 runTest('Energy: default/empty parameters', () => {
   const result = calculateEnergyEmissions();
@@ -76,6 +86,21 @@ runTest('Energy: electricity with green energy offsets', () => {
   const standardKwh = 200 * 0.5;
   const expected = standardKwh * EMISSION_FACTORS.energy.electricity;
   assert.strictEqual(result, Number(expected.toFixed(2)));
+});
+
+runTest('Energy: clean energy percentage boundaries', () => {
+  const resultOverCap = calculateEnergyEmissions({
+    electricityKwh: 100,
+    electricityCleanPercent: 150 // should cap at 100% (zero emissions)
+  });
+  assert.strictEqual(resultOverCap, 0);
+
+  const resultUnderFloor = calculateEnergyEmissions({
+    electricityKwh: 100,
+    electricityCleanPercent: -50 // should floor at 0%
+  });
+  const expected = 100 * EMISSION_FACTORS.energy.electricity;
+  assert.strictEqual(resultUnderFloor, Number(expected.toFixed(2)));
 });
 
 runTest('Energy: full home services footprint', () => {
